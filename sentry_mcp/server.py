@@ -210,7 +210,7 @@ class SentryMCPServer:
                 return issue_details
             
             total_events = self.client.get_issue_events(issue_id, limit=20)
-            total_events_counts = total_events.get('count', 0)
+            total_events_counts = len(total_events)
             
             latest_event = self.client.get_issue_latest_event(issue_id)
 

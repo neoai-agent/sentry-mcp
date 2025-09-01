@@ -10,7 +10,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-logger = logging.getLogger('sentry_mcp')
+logger = logging.getLogger('sentry-mcp')
 
 
 class SentryMCPServer:
@@ -84,15 +84,12 @@ class SentryMCPServer:
             return {"error": f"Failed to get project health: {str(e)}"}
 
     async def get_recent_issues(self, project_name: str, time_range_minutes: int = 60):
-        """Get recent issues for a project within specified time range
+        """Get recent issues for a project
         Args:
-            project_name: The name of the project to check
-            time_range_minutes: Time range in minutes to get data for (default: 60 = 1 hour)
-                              - For real-time monitoring: 1-30 minutes
-                              - For recent monitoring: 31-120 minutes
-                              - For extended monitoring: 121+ minutes
+            project_name: Project name to check
+            time_range_minutes: Time range in minutes (default: 60)
         Returns:
-            A dictionary containing recent issues and monitoring information
+            Recent issues and monitoring info
         """
         try:
             logger.info(f"Looking for project: {project_name}")
@@ -201,18 +198,19 @@ class SentryMCPServer:
             return {"error": f"Failed to get recent issues: {str(e)}"}
 
     async def get_issue_analysis(self, issue_id: str):
-        """Get detailed analysis of latest issue in a project
+        """Get detailed analysis of an issue
         Args:
-            issue_id: The ID of the issue to analyze
+            issue_id: Issue ID to analyze
         Returns:
-            A dictionary containing detailed analysis for the issue
+            Detailed issue analysis
         """
         try:
             issue_details = self.client.get_issue_details(issue_id)
             if "error" in issue_details:
                 return issue_details
             
-            total_events = self.client.get_issue_events(issue_id, limit=100)
+            total_events = self.client.get_issue_events(issue_id, limit=20)
+            total_events_counts = total_events.get('count', 0)
             
             latest_event = self.client.get_issue_latest_event(issue_id)
 
@@ -239,7 +237,7 @@ class SentryMCPServer:
                     "error_type": issue_details.get('metadata', {}).get('type')
                 },
                 "error_message": error_message,
-                "events_count": total_events,
+                "events_count": total_events_counts,
                 "release_version_of_latest_issue": release_version_of_latest_issue
             }
             logger.info(f"Issue analysis: {analysis}")

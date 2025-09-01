@@ -108,7 +108,7 @@ class SentryMCPServer:
             if time_range_minutes <= 30:
                 monitoring_type = "real-time"
                 limit = 100
-            elif time_range_minutes <= 120:
+            elif time_range_minutes <= 60:
                 monitoring_type = "recent"
                 limit = 75
             else:

@@ -60,14 +60,11 @@ class SentryClient:
         """Make a request to the Sentry API."""
         url = f"{self.base_url}{endpoint}"
         try:
-            response = self.session.request(method, url, params=params, json=data)
+            response = self.session.request(method, url, params=params, json=data, timeout=(5, 30))
             response.raise_for_status()
             result = response.json()
-            
-            # Log the response structure for debugging
             logger.debug(f"API response from {url}: {type(result)} - {str(result)[:200]}...")
             
-            # Validate response format
             if result is None:
                 logger.warning(f"API returned None for {url}")
                 return {}
@@ -80,6 +77,12 @@ class SentryClient:
                 logger.error(f"Bad request: {url}. This might indicate invalid parameters or the project doesn't exist in organization '{self.config.organization}'.")
             else:
                 logger.error(f"HTTP error {e.response.status_code}: {url}")
+            raise
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Connection aborted when calling {url}: {e}")
+            raise
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Timed out when calling {url}: {e}")
             raise
         except requests.exceptions.RequestException as e:
             logger.error(f"API request failed: {e}")

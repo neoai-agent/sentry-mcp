@@ -452,13 +452,13 @@ class SentryClient:
             self._projects_cache["timestamp"] is None or
             (current_time - self._projects_cache["timestamp"]).total_seconds() > self._projects_cache["cache_ttl"]):
             
-            logger.info("Cache expired or empty, fetching projects from Sentry API")
+            logger.debug("Cache expired or empty, fetching projects from Sentry API")
             projects = self.get_organization_projects()
             self._projects_cache["data"] = projects
             self._projects_cache["timestamp"] = current_time
-            logger.info(f"Fetched {len(projects)} projects")
+            logger.debug(f"Fetched {len(projects)} projects")
         else:
-            logger.info("Using cached projects data")
+            logger.debug("Using cached projects data")
             
         return self._projects_cache["data"]
 

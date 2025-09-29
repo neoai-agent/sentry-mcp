@@ -6,6 +6,7 @@ from typing import Dict, List, Any, Optional
 import requests
 import logging
 import json
+import time
 from datetime import datetime, timezone, timedelta
 from litellm import acompletion
 from dataclasses import dataclass
@@ -57,39 +58,48 @@ class SentryClient:
         self.base_url = f"{self.config.host}/api/0"
 
     def _make_request(self, method: str, endpoint: str, params: Optional[Dict] = None, data: Optional[Dict] = None) -> Dict:
-        """Make a request to the Sentry API."""
+        """Make a request to the Sentry API with simple retry."""
         url = f"{self.base_url}{endpoint}"
-        try:
-            response = self.session.request(method, url, params=params, json=data, timeout=(5, 30))
-            response.raise_for_status()
-            result = response.json()
-            logger.debug(f"API response from {url}: {type(result)} - {str(result)[:200]}...")
-            
-            if result is None:
-                logger.warning(f"API returned None for {url}")
-                return {}
-            
-            return result
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                logger.error(f"Resource not found: {url}. This might indicate the project doesn't exist in organization '{self.config.organization}' or the organization is incorrect.")
-            elif e.response.status_code == 400:
-                logger.error(f"Bad request: {url}. This might indicate invalid parameters or the project doesn't exist in organization '{self.config.organization}'.")
-            else:
-                logger.error(f"HTTP error {e.response.status_code}: {url}")
-            raise
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"Connection aborted when calling {url}: {e}")
-            raise
-        except requests.exceptions.Timeout as e:
-            logger.error(f"Timed out when calling {url}: {e}")
-            raise
-        except requests.exceptions.RequestException as e:
-            logger.error(f"API request failed: {e}")
-            raise
-        except ValueError as e:
-            logger.error(f"Failed to parse JSON response from {url}: {e}")
-            raise
+        
+        #try 3 times with 2 second delay between attempts
+        for attempt in range(3):
+            try:
+                response = self.session.request(method, url, params=params, json=data, timeout=(10, 30))
+                response.raise_for_status()
+                result = response.json()
+                logger.debug(f"API response from {url}: {type(result)} - {str(result)[:200]}...")
+                
+                if result is None:
+                    logger.warning(f"API returned None for {url}")
+                    return {}
+                
+                return result
+                
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+                if attempt < 2:
+                    logger.warning(f"Connection error, retrying in 2s (attempt {attempt + 1}/3): {e}")
+                    time.sleep(2)
+                    continue
+                else:
+                    logger.error(f"Connection failed after 3 attempts: {e}")
+                    raise
+                    
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 404:
+                    logger.error(f"Resource not found: {url}. This might indicate the project doesn't exist in organization '{self.config.organization}' or the organization is incorrect.")
+                elif e.response.status_code == 400:
+                    logger.error(f"Bad request: {url}. This might indicate invalid parameters or the project doesn't exist in organization '{self.config.organization}'.")
+                else:
+                    logger.error(f"HTTP error {e.response.status_code}: {url}")
+                raise
+                
+            except requests.exceptions.RequestException as e:
+                logger.error(f"API request failed: {e}")
+                raise
+                
+            except ValueError as e:
+                logger.error(f"Failed to parse JSON response from {url}: {e}")
+                raise
 
     def get_organization_projects(self) -> List[Dict[str, Any]]:
         """Get all projects in the organization."""
